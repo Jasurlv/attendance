@@ -1,0 +1,71 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Site {
+  id           String  @id @default(cuid())
+  name         String
+  latitude     Float
+  longitude    Float
+  radiusM      Int     @default(50)
+  startTime    String  @default("08:00") // HH:MM, in the site's timezone
+  lunchFrom    String  @default("12:00")
+  lunchTo      String  @default("13:00")
+  endTime      String  @default("18:00")
+  graceMinutes Int     @default(0) // minutes after startTime that still count as on time
+  timezone     String  @default("Europe/Riga")
+  createdAt    DateTime @default(now())
+  workers      User[]
+}
+
+model User {
+  id           String   @id @default(cuid())
+  name         String
+  username     String   @unique // always stored lowercase
+  passwordHash String
+  role         Role     @default(WORKER)
+  active       Boolean  @default(true)
+  hourlyWage   Float    @default(0) // used for lateness cost reports
+  siteId       String?
+  site         Site?    @relation(fields: [siteId], references: [id])
+  deviceId     String? // locks the account to one phone; set on first mobile login
+  createdAt    DateTime @default(now())
+  events       AttendanceEvent[]
+
+  @@index([siteId])
+}
+
+model AttendanceEvent {
+  id          String    @id @default(cuid())
+  userId      String
+  user        User      @relation(fields: [userId], references: [id])
+  type        EventType
+  serverTime  DateTime  @default(now())
+  latitude    Float
+  longitude   Float
+  accuracyM   Float
+  distanceM   Float
+  lateMinutes Int       @default(0)
+  mocked      Boolean   @default(false)
+  accepted    Boolean   @default(true)
+  rejectReason String?
+
+  @@index([userId, serverTime])
+}
+
+enum Role {
+  ADMIN
+  WORKER
+}
+
+enum EventType {
+  START
+  LUNCH_START
+  LUNCH_END
+  END
+}
